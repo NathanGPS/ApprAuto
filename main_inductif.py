@@ -101,20 +101,20 @@ def main(fill_na_method, treat_outliers, normalize_features,
             x_train.loc[~mask] = x_train.loc[~mask].fillna(fill_na_non_potable)
             
             mask_test = y_test == 1
-            x_test.loc[mask_test] = x_test[mask_test].fillna(fill_na_potable)
-            x_test.loc[~mask_test] = x_test[~mask_test].fillna(fill_na_non_potable)
+            x_test.loc[mask_test] = x_test.loc[mask_test].fillna(fill_na_potable)
+            x_test.loc[~mask_test] = x_test.loc[~mask_test].fillna(fill_na_non_potable)
 
         elif fill_na_method == "median by class":
             mask = y_train== 1
-            fill_na_potable = x_train[mask].median()
-            fill_na_non_potable = x_train[~mask].median()
+            fill_na_potable = x_train.loc[mask].median()
+            fill_na_non_potable = x_train.loc[~mask].median()
 
-            x_train.loc[mask] = x_train[mask].fillna(fill_na_potable)
-            x_train.loc[~mask] = x_train[~mask].fillna(fill_na_non_potable)
+            x_train.loc[mask] = x_train.loc[mask].fillna(fill_na_potable)
+            x_train.loc[~mask] = x_train.loc[~mask].fillna(fill_na_non_potable)
             
             mask_test = y_test == 1
-            x_test.loc[mask_test] = x_test[mask_test].fillna(fill_na_potable)
-            x_test.loc[~mask_test] = x_test[~mask_test].fillna(fill_na_non_potable)
+            x_test.loc[mask_test] = x_test.loc[mask_test].fillna(fill_na_potable)
+            x_test.loc[~mask_test] = x_test.loc[~mask_test].fillna(fill_na_non_potable)
 
         elif fill_na_method == "mean by class with noise":
             mask = y_train == 1
