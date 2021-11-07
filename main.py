@@ -2,13 +2,23 @@ import pandas as pd
 from sacred import Experiment
 from data import get_data, data_ingredient
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score, RepeatedStratifiedKFold
+from mpl_toolkits import mplot3d
+import numpy as np
 
 ex = Experiment("drinkable water", ingredients=[data_ingredient])
 
 
 @ex.config
 def config():
-    pass
+    seed = 2021
+    fill_na_method = "mean by class"
+    remove_outliers = False
+    normalize_features = True
+    reduce_dimension = None
+    model_used = "Random Forest"
 
 
 def plot_bar_charts(data, title, ax=None):
@@ -47,46 +57,101 @@ def plot_pie_chart(data, column, ax, only_keep_na=False):
 
 
 @ex.automain
-def main():
+def main(fill_na_method, remove_outliers, normalize_features, reduce_dimension, model_used, seed):
+    # --- Setting the seed --- #
+    np.random.seed(seed)
+
     data = get_data()
 
-    # Study missing data within features
-    # missing_values = data.isna().sum() / len(data)
-    # missing_values.sort_values(inplace=True, ascending=False)
+    # # ignoring dropna for now
+    # data.dropna(inplace=True)
+    # data.dropna(axis=0, inplace=True)
+    if fill_na_method == "mean by class":
+        mask = data["Potability"] == 1
+        fill_na_potable = data[mask].mean()
+        fill_na_non_potable = data[~mask].mean()
 
-    # plot_bar_charts(missing_values, title="Percentage of missing value per features")
-    # fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(14, 10))
-    # plot_pie_chart(data, "Sulfate", axes[0, 0], only_keep_na=True)
-    # plot_pie_chart(data, "ph", axes[0, 1], only_keep_na=True)
-    # plot_pie_chart(data, "Trihalomethanes", axes[1, 0], only_keep_na=True)
-    # plot_pie_chart(data, "", axes[1, 1])
-    # fig.suptitle(
-    #     "Impact of missing features on potability",
-    #     x=.5,
-    #     y=0,
-    #     va="bottom"
-    # )
-    # plt.show()
-    fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(14, 5))
-    missing_sulfate = data[data["Sulfate"].isna()]
-    missing_sulfate = missing_sulfate[["ph", "Trihalomethanes"]]
-    missing_sulfate = missing_sulfate.isna().sum() / len(missing_sulfate)
-    plot_bar_charts(missing_sulfate, title="Missing values within missing Sulfate", ax=axes[0])
-    axes[0].tick_params(axis='x', rotation=0)
+        data[mask] = data[mask].fillna(fill_na_potable)
+        data[~mask] = data[~mask].fillna(fill_na_non_potable)
+    elif fill_na_method == "median by class":
+        mask = data["Potability"] == 1
+        fill_na_potable = data[mask].median()
+        fill_na_non_potable = data[~mask].median()
 
-    missing_sulfate = data[data["ph"].isna()]
-    missing_sulfate = missing_sulfate[["Sulfate", "Trihalomethanes"]]
-    missing_sulfate = missing_sulfate.isna().sum() / len(missing_sulfate)
-    plot_bar_charts(missing_sulfate, title="Missing values within missing pH", ax=axes[1])
-    axes[1].tick_params(axis='x', rotation=0)
+        data[mask] = data[mask].fillna(fill_na_potable)
+        data[~mask] = data[~mask].fillna(fill_na_non_potable)
+    elif fill_na_method == "mean by class with noise":
+        mask = data["Potability"] == 1
+        fill_na_potable = data[mask].mean()
+        potable_std = data[mask].std()
+        fill_na_non_potable = data[~mask].mean()
+        non_potable_std = data[~mask].std()
 
-    missing_sulfate = data[data["Trihalomethanes"].isna()]
-    missing_sulfate = missing_sulfate[["Sulfate", "ph"]]
-    missing_sulfate = missing_sulfate.isna().sum() / len(missing_sulfate)
-    plot_bar_charts(missing_sulfate, title="Missing values within missing Trihalomethanes",
-                    ax=axes[2])
-    axes[2].tick_params(axis='x', rotation=0)
+        missing_potable_line = data[mask][data[mask].isna().sum(axis=1).astype(bool)]
+        for i in missing_potable_line.index:
+            random_sample = pd.Series(
+                np.random.normal(fill_na_potable, potable_std),
+                index=fill_na_potable.index
+            )
+            data.loc[i] = data.loc[i].fillna(random_sample)
+        missing_non_potable_line = data[~mask][data[~mask].isna().sum(axis=1).astype(bool)]
+        for i in missing_non_potable_line.index:
+            random_sample = pd.Series(
+                np.random.normal(fill_na_non_potable, non_potable_std),
+                index=fill_na_non_potable.index
+            )
+            data.loc[i] = data.loc[i].fillna(random_sample)
+    elif fill_na_method == "median by class with noise":
+        mask = data["Potability"] == 1
+        fill_na_potable = data[mask].median()
+        potable_std = data[mask].std()
+        fill_na_non_potable = data[~mask].median()
+        non_potable_std = data[~mask].std()
 
-    plt.show()
+        missing_potable_line = data[mask][data[mask].isna().sum(axis=1).astype(bool)]
+        for i in missing_potable_line.index:
+            random_sample = pd.Series(
+                np.random.normal(fill_na_potable, potable_std),
+                index=fill_na_potable.index
+            )
+            data.loc[i] = data.loc[i].fillna(random_sample)
+        missing_non_potable_line = data[~mask][data[~mask].isna().sum(axis=1).astype(bool)]
+        for i in missing_non_potable_line.index:
+            random_sample = pd.Series(
+                np.random.normal(fill_na_non_potable, non_potable_std),
+                index=fill_na_non_potable.index
+            )
+            data.loc[i] = data.loc[i].fillna(random_sample)
+    elif fill_na_method == "mean":
+        data.fillna(data.mean(), inplace=True)
+    elif fill_na_method == "median":
+        data.fillna(data.median(), inplace=True)
+    elif fill_na_method == "dropna":
+        data.dropna(axis=0, inplace=True)
 
-    return 0
+    if remove_outliers:
+        # ------ removing outliers ------ #
+        d1 = data.quantile(0.01)
+        d9 = data.quantile(0.99)
+        data = data[~((data < d1) | (data > d9)).sum(axis=1).astype(bool)]
+
+    x = data.drop("Potability", axis=1)
+    y = data["Potability"]
+
+    if normalize_features:
+        x = (x - x.mean()) / x.std()
+
+    if reduce_dimension == "PCA":
+        # ------ PCA ------ #
+        pca = PCA(n_components=3)
+        x = pca.fit_transform(x)
+
+    if model_used == "Random Forest":
+        # ------ Random Forest ------ #
+        model = RandomForestClassifier()
+        cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+        n_scores = cross_val_score(model, x, y, scoring="accuracy", cv=cv, n_jobs=1, error_score="raise")
+    else:
+        n_scores = None
+
+    return n_scores.mean()
