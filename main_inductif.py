@@ -23,12 +23,12 @@ ex = Experiment("drinkable water", ingredients=[data_ingredient])
 @ex.config
 def config():
     # seed = 2021
-    seed = 56
-    fill_na_method = "with zero"
-    treat_outliers = dict(used=True, version='put quantile only potability')
+    seed = 2021
+    fill_na_method = "mean by class"
+    treat_outliers = dict(used=False, version='remove')
     normalize_features = False
     reduce_dimension = None
-    model_used = "Random Forest"
+    model_used = "Random Forest Greed Search"
     data_augmentation = False
     k_folds = dict(used = True, nbr_fold = 10)
 
@@ -228,24 +228,8 @@ def main(fill_na_method, treat_outliers, normalize_features,
                     x_train.loc[y_train==1 ,c] = x_train.loc[y_train ==1 ,c].apply(lambda x: q1 if x<q1 else x)
                     x_train.loc[y_train==1,c] = x_train.loc[y_train  ==1,c].apply(lambda x: q3 if x>q3 else x)
 
-                    x_test.loc[y_test==1 ,c] = x_test.loc[y_test==1 ,c].apply(lambda x: q1 if x<q1 else x)
-                    x_test.loc[y_test==1,c] = x_test.loc[y_test==1 ,c].apply(lambda x: q3 if x>q3 else x)
-            elif treat_outliers['version'] == 'put quantile by classes':
-                y_train = y_train.loc[x_train.index]
-                y_test = y_test.loc[x_test.index]
-                for c in x_train.columns:
-                    for potability in [0 , 1]:
-                        q1 = np.quantile(x_train.loc[y_train   == potability,c],0.25)
-                        q3 = np.quantile(x_train.loc[y_train   == potability,c],0.75)
-                        x_train.loc[y_train==potability ,c] = x_train.loc[y_train==potability,c].apply(
-                            lambda x: q1 if x<q1 else x)
-                        x_train.loc[y_train==potability,c] = x_train.loc[y_train==potability,c].apply(
-                            lambda x: q3 if x>q3 else x)
-
-                        x_test.loc[y_test==potability ,c] = x_test.loc[y_test==potability,c].apply(
-                            lambda x: q1 if x<q1 else x)
-                        x_test.loc[y_test==potability,c] = x_test.loc[y_test==potability,c].apply(
-                            lambda x: q3 if x>q3 else x)
+                    x_test.loc[:,c] = x_test.loc[:,c].apply(lambda x: q1 if x<q1 else x)
+                    x_test.loc[:,c] = x_test.loc[:,c].apply(lambda x: q3 if x>q3 else x)
  
         y_train = y_train.loc[x_train.index]
         y_test = y_test.loc[x_test.index]
@@ -255,8 +239,8 @@ def main(fill_na_method, treat_outliers, normalize_features,
 
         if normalize_features:
             sc = StandardScaler()
-            x_train.loc[x_train.columns] = sc.fit_transform(x_train)
-            x_test.loc[x_test.columns] = sc.transform(x_test)
+            x_train[x_train.columns] = sc.fit_transform(x_train)
+            x_test[x_test.columns] = sc.transform(x_test)
 
         if reduce_dimension == "PCA":
             # ------ PCA ------ #
@@ -270,6 +254,26 @@ def main(fill_na_method, treat_outliers, normalize_features,
             # --- Data augmentation --- #
                 
             model.fit(x_train,y_train)
+            pred_values = model.predict(x_test)
+            acc = accuracy_score(pred_values , y_test)
+            acc_list.append(acc)
+
+        if model_used == "Random Forest Greed Search":
+            # ------ Random Forest ------ #
+            model = RandomForestClassifier(random_state=1)
+            params = {
+                "min_samples_split": [10,20,100],
+                "max_depth": [5,10,50],
+                "min_samples_leaf": [10,20,50],
+                "max_leaf_nodes": [10,20,100],
+                "max_features": [9,5]
+            }
+
+            rf_grid = GridSearchCV(
+                estimator=model,param_grid=params,cv=5,scoring='balanced_accuracy',
+                verbose=10,n_jobs = -1).fit(x_train,y_train)
+
+            model = rf_grid.best_estimator_
             pred_values = model.predict(x_test)
             acc = accuracy_score(pred_values , y_test)
             acc_list.append(acc)
