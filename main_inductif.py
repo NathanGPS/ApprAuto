@@ -16,6 +16,8 @@ import statsmodels.api as sm
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
+from sklearn.pipeline import Pipeline
 
 ex = Experiment("drinkable water", ingredients=[data_ingredient])
 
@@ -28,7 +30,7 @@ def config():
     treat_outliers = dict(used=True, version='put quantile only potability')
     normalize_features = False
     reduce_dimension = None
-    model_used = "Random Forest"
+    model_used = "SVM"
     data_augmentation = False
     k_folds = dict(used = True, nbr_fold = 10)
 
@@ -273,6 +275,24 @@ def main(fill_na_method, treat_outliers, normalize_features,
             pred_values = model.predict(x_test)
             acc = accuracy_score(pred_values , y_test)
             acc_list.append(acc)
+
+        elif model_used == "SVM":
+             # ------ Support vector machines ------ #
+            params = {'svc__C':[0.001,0.01,0.1,1,3,5,7 ,10],
+            'svc__kernel':['linear', 'rbf']}
+            #initializing the grid
+            svm = Pipeline([('scaler', StandardScaler()), ('svc', SVC())])
+            grid_svm = GridSearchCV(estimator=svm,
+                                    param_grid=params,
+                                    cv=3,
+                                    verbose=3,
+                                    n_jobs=-1)
+            grid_svm.fit(x_train, y_train)
+            pred_values = grid_svm.predict(x_test)
+            acc = accuracy_score(pred_values , y_test)
+            acc_list.append(acc)
+
+
             
         else:
             acc_list = [None]
