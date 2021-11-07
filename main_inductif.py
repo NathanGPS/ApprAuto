@@ -24,12 +24,12 @@ ex = Experiment("drinkable water", ingredients=[data_ingredient])
 def config():
     # seed = 2021
     seed = 56
-    fill_na_method = "mean by class"
-    treat_outliers = dict(used = True, version = 'put quantile by classes')
+    fill_na_method = "with zero"
+    treat_outliers = dict(used=True, version='put quantile only potability')
     normalize_features = False
     reduce_dimension = None
     model_used = "Random Forest"
-    data_augmentation = True
+    data_augmentation = False
     k_folds = dict(used = True, nbr_fold = 10)
 
 
@@ -91,38 +91,37 @@ def main(fill_na_method, treat_outliers, normalize_features,
 
         x_train, x_test = x.iloc[list(train_index)], x.iloc[list(test_index)]
         y_train, y_test = y.iloc[list(train_index)], y.iloc[list(test_index)]
-        print(y_train)
 
         if fill_na_method == "mean by class":
             mask = y_train == 1
-            fill_na_potable = x_train[mask].mean()
-            fill_na_non_potable = x_train[~mask].mean()
+            fill_na_potable = x_train.loc[mask].mean()
+            fill_na_non_potable = x_train.loc[~mask].mean()
 
-            x_train[mask] = x_train[mask].fillna(fill_na_potable)
-            x_train[~mask] = x_train[~mask].fillna(fill_na_non_potable)
+            x_train.loc[mask] = x_train.loc[mask].fillna(fill_na_potable)
+            x_train.loc[~mask] = x_train.loc[~mask].fillna(fill_na_non_potable)
             
             mask_test = y_test == 1
-            x_test[mask_test] = x_test[mask_test].fillna(fill_na_potable)
-            x_test[~mask_test] = x_test[~mask_test].fillna(fill_na_non_potable)
+            x_test.loc[mask_test] = x_test[mask_test].fillna(fill_na_potable)
+            x_test.loc[~mask_test] = x_test[~mask_test].fillna(fill_na_non_potable)
 
         elif fill_na_method == "median by class":
             mask = y_train== 1
             fill_na_potable = x_train[mask].median()
             fill_na_non_potable = x_train[~mask].median()
 
-            x_train[mask] = x_train[mask].fillna(fill_na_potable)
-            x_train[~mask] = x_train[~mask].fillna(fill_na_non_potable)
+            x_train.loc[mask] = x_train[mask].fillna(fill_na_potable)
+            x_train.loc[~mask] = x_train[~mask].fillna(fill_na_non_potable)
             
             mask_test = y_test == 1
-            x_test[mask_test] = x_test[mask_test].fillna(fill_na_potable)
-            x_test[~mask_test] = x_test[~mask_test].fillna(fill_na_non_potable)
+            x_test.loc[mask_test] = x_test[mask_test].fillna(fill_na_potable)
+            x_test.loc[~mask_test] = x_test[~mask_test].fillna(fill_na_non_potable)
 
         elif fill_na_method == "mean by class with noise":
             mask = y_train == 1
-            fill_na_potable = x_train[mask].mean()
-            potable_std = x_train[mask].std()
-            fill_na_non_potable = x_train[~mask].mean()
-            non_potable_std = x_train[~mask].std()
+            fill_na_potable = x_train.loc[mask].mean()
+            potable_std = x_train.loc[mask].std()
+            fill_na_non_potable = x_train.loc[~mask].mean()
+            non_potable_std = x_train.loc[~mask].std()
 
             missing_potable_line = x_train[mask][x_train[mask].isna().sum(axis=1).astype(bool)]
             for i in missing_potable_line.index:
@@ -158,10 +157,10 @@ def main(fill_na_method, treat_outliers, normalize_features,
 
         elif fill_na_method == "median by class with noise":
             mask = y_train == 1
-            fill_na_potable = x_train[mask].median()
-            potable_std = x_train[mask].std()
-            fill_na_non_potable = x_train[~mask].median()
-            non_potable_std = x_train[~mask].std()
+            fill_na_potable = x_train.loc[mask].median()
+            potable_std = x_train.loc[mask].std()
+            fill_na_non_potable = x_train.loc[~mask].median()
+            non_potable_std = x_train.loc[~mask].std()
 
             missing_potable_line = x_train[mask][x_train[mask].isna().sum(axis=1).astype(bool)]
             for i in missing_potable_line.index:
@@ -218,11 +217,11 @@ def main(fill_na_method, treat_outliers, normalize_features,
             if treat_outliers['version'] == 'remove':
                 d1 = x_train.quantile(0.1)
                 d9 = x_train.quantile(0.9)
-                x_train = x_train[~((x_train < d1) | (x_train > d9)).sum(axis=1).astype(bool)]
-                x_test = x_test[~((x_test < d1) | (x_test > d9)).sum(axis=1).astype(bool)]
+                x_train = x_train.loc[~((x_train < d1) | (x_train > d9)).sum(axis=1).astype(bool)]
+                x_test = x_test.loc[~((x_test < d1) | (x_test > d9)).sum(axis=1).astype(bool)]
             elif treat_outliers['version'] == 'put quantile only potability':
-                y_train = y_train[x_train.index]
-                y_test = y_test[x_test.index]
+                y_train = y_train.loc[x_train.index]
+                y_test = y_test.loc[x_test.index]
                 for c in x_train.columns:
                     q1 = np.quantile(x_train.loc[y_train   == 1,c],0.25)
                     q3 = np.quantile(x_train.loc[y_train   == 1,c],0.75)
@@ -232,28 +231,32 @@ def main(fill_na_method, treat_outliers, normalize_features,
                     x_test.loc[y_test==1 ,c] = x_test.loc[y_test==1 ,c].apply(lambda x: q1 if x<q1 else x)
                     x_test.loc[y_test==1,c] = x_test.loc[y_test==1 ,c].apply(lambda x: q3 if x>q3 else x)
             elif treat_outliers['version'] == 'put quantile by classes':
-                y_train = y_train[x_train.index]
-                y_test = y_test[x_test.index]
+                y_train = y_train.loc[x_train.index]
+                y_test = y_test.loc[x_test.index]
                 for c in x_train.columns:
                     for potability in [0 , 1]:
                         q1 = np.quantile(x_train.loc[y_train   == potability,c],0.25)
                         q3 = np.quantile(x_train.loc[y_train   == potability,c],0.75)
-                        x_train.loc[y_train==potability ,c] = x_train.loc[y_train==potability,c].apply(lambda x: q1 if x<q1 else x)
-                        x_train.loc[y_train==potability,c] = x_train.loc[y_train==potability,c].apply(lambda x: q3 if x>q3 else x)
+                        x_train.loc[y_train==potability ,c] = x_train.loc[y_train==potability,c].apply(
+                            lambda x: q1 if x<q1 else x)
+                        x_train.loc[y_train==potability,c] = x_train.loc[y_train==potability,c].apply(
+                            lambda x: q3 if x>q3 else x)
 
-                        x_test.loc[y_test==potability ,c] = x_test.loc[y_test==potability,c].apply(lambda x: q1 if x<q1 else x)
-                        x_test.loc[y_test==potability,c] = x_test.loc[y_test==potability,c].apply(lambda x: q3 if x>q3 else x)
+                        x_test.loc[y_test==potability ,c] = x_test.loc[y_test==potability,c].apply(
+                            lambda x: q1 if x<q1 else x)
+                        x_test.loc[y_test==potability,c] = x_test.loc[y_test==potability,c].apply(
+                            lambda x: q3 if x>q3 else x)
  
-        y_train = y_train[x_train.index]
-        y_test = y_test[x_test.index]
+        y_train = y_train.loc[x_train.index]
+        y_test = y_test.loc[x_test.index]
 
         if data_augmentation:
             x_train, y_train = SMOTE(random_state=1,n_jobs=-1).fit_resample(x_train,y_train)
 
         if normalize_features:
             sc = StandardScaler()
-            x_train[x_train.columns] = sc.fit_transform(x_train)
-            x_test[x_test.columns] = sc.transform(x_test)
+            x_train.loc[x_train.columns] = sc.fit_transform(x_train)
+            x_test.loc[x_test.columns] = sc.transform(x_test)
 
         if reduce_dimension == "PCA":
             # ------ PCA ------ #
@@ -275,5 +278,7 @@ def main(fill_na_method, treat_outliers, normalize_features,
             acc_list = [None]
             break
     n_scores = np.array(acc_list)
+    print('x_train.shape = {}'.format(x_train.shape))
+    print('x_test.shape = {}'.format(x_test.shape))
     print('n_scores = {}'.format(list(n_scores)))
     return n_scores.mean()
