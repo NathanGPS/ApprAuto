@@ -30,7 +30,7 @@ def config():
     treat_outliers = dict(used=True, version='put quantile only potability')
     normalize_features = False
     reduce_dimension = None
-    model_used = "SVM"
+    model_used = "Random Forest"
     data_augmentation = False
     k_folds = dict(used = True, nbr_fold = 10)
 
@@ -221,33 +221,6 @@ def main(fill_na_method, treat_outliers, normalize_features,
                 d9 = x_train.quantile(0.9)
                 x_train = x_train.loc[~((x_train < d1) | (x_train > d9)).sum(axis=1).astype(bool)]
                 x_test = x_test.loc[~((x_test < d1) | (x_test > d9)).sum(axis=1).astype(bool)]
-            elif treat_outliers['version'] == 'put quantile only potability':
-                y_train = y_train.loc[x_train.index]
-                y_test = y_test.loc[x_test.index]
-                for c in x_train.columns:
-                    q1 = np.quantile(x_train.loc[y_train   == 1,c],0.25)
-                    q3 = np.quantile(x_train.loc[y_train   == 1,c],0.75)
-                    x_train.loc[y_train==1 ,c] = x_train.loc[y_train ==1 ,c].apply(lambda x: q1 if x<q1 else x)
-                    x_train.loc[y_train==1,c] = x_train.loc[y_train  ==1,c].apply(lambda x: q3 if x>q3 else x)
-
-                    x_test.loc[y_test==1 ,c] = x_test.loc[y_test==1 ,c].apply(lambda x: q1 if x<q1 else x)
-                    x_test.loc[y_test==1,c] = x_test.loc[y_test==1 ,c].apply(lambda x: q3 if x>q3 else x)
-            elif treat_outliers['version'] == 'put quantile by classes':
-                y_train = y_train.loc[x_train.index]
-                y_test = y_test.loc[x_test.index]
-                for c in x_train.columns:
-                    for potability in [0 , 1]:
-                        q1 = np.quantile(x_train.loc[y_train   == potability,c],0.25)
-                        q3 = np.quantile(x_train.loc[y_train   == potability,c],0.75)
-                        x_train.loc[y_train==potability ,c] = x_train.loc[y_train==potability,c].apply(
-                            lambda x: q1 if x<q1 else x)
-                        x_train.loc[y_train==potability,c] = x_train.loc[y_train==potability,c].apply(
-                            lambda x: q3 if x>q3 else x)
-
-                        x_test.loc[y_test==potability ,c] = x_test.loc[y_test==potability,c].apply(
-                            lambda x: q1 if x<q1 else x)
-                        x_test.loc[y_test==potability,c] = x_test.loc[y_test==potability,c].apply(
-                            lambda x: q3 if x>q3 else x)
  
         y_train = y_train.loc[x_train.index]
         y_test = y_test.loc[x_test.index]
@@ -292,8 +265,6 @@ def main(fill_na_method, treat_outliers, normalize_features,
             acc = accuracy_score(pred_values , y_test)
             acc_list.append(acc)
 
-
-            
         else:
             acc_list = [None]
             break
